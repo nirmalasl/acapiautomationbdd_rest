@@ -1,0 +1,63 @@
+# Bitbucket Pipelines configuration for the AC API Automation BDD suite.
+#
+# Required repository/deployment variables (Repository settings > Repository
+# variables, or per-environment Deployment variables for dev/staging) — mark
+# the *_MERCHANT_SECRET_KEY ones as "Secured":
+#   ENV                        dev | staging (defaults to "dev" if unset)
+#   DEV_BASE_URL
+#   DEV_MERCHANT_SECRET_KEY
+#   STAGING_BASE_URL
+#   STAGING_MERCHANT_SECRET_KEY
+#
+# See ConfigManager (src/test/java/com/agechecked/config/ConfigManager.java):
+# these are read as OS environment variables at runtime, so no .env file or
+# code changes are needed to run in CI.
+
+image: maven:3.9-eclipse-temurin-17
+
+definitions:
+  caches:
+    maven: ~/.m2/repository
+  steps:
+    - step: &run-tests
+        name: Run BDD API tests
+        caches:
+          - maven
+        script:
+          - mvn -B -q test-compile
+          - mvn -B test
+        after-script:
+          # Publish reports even when tests fail, so failures are still visible.
+          - mkdir -p test-reports
+          - cp -r target/allure-results test-reports/allure-results 2>/dev/null || true
+          - cp -r target/cucumber-reports test-reports/cucumber-reports 2>/dev/null || true
+          - cp -r target/surefire-reports test-reports/surefire-reports 2>/dev/null || true
+        artifacts:
+          - test-reports/**
+
+pipelines:
+  default:
+    # Runs on every push to a branch without its own dedicated pipeline below.
+    - step:
+        <<: *run-tests
+        name: Run BDD API tests (dev)
+
+  pull-requests:
+    '**':
+      - step:
+          <<: *run-tests
+          name: Run BDD API tests (dev, PR validation)
+
+  branches:
+    main:
+      - step:
+          <<: *run-tests
+          name: Run BDD API tests (dev)
+
+  custom:
+    # Trigger manually from Bitbucket: Pipelines > Run pipeline > staging-tests.
+    staging-tests:
+      - step:
+          <<: *run-tests
+          name: Run BDD API tests (staging)
+          deployment: staging

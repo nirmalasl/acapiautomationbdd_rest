@@ -4,3 +4,6 @@ target/
 *.iml
 .vscode/
 *.log
+allure-results/
+allure-report/
+.allure/
